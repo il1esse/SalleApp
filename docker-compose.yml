@@ -1,0 +1,9 @@
+services:
+  salle:
+    build: .
+    restart: unless-stopped
+    expose:
+      - "80"
+    # En local : décommente pour tester sur http://localhost:8080
+    # ports:
+    #   - "8080:80"
