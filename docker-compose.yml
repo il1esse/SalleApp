@@ -2,8 +2,10 @@ services:
   salle:
     build: .
     restart: unless-stopped
+    environment:
+      - PORT=${PORT:-80}
     expose:
-      - "80"
+      - "${PORT:-80}"
     # En local : décommente pour tester sur http://localhost:8080
     # ports:
-    #   - "8080:80"
+    #   - "8080:${PORT:-80}"

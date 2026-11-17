@@ -1,6 +1,7 @@
 server {
-    listen 80;
+    listen ${PORT};
     server_name _;
+    # Port lu dans la variable d'environnement PORT au démarrage (80 par défaut)
     root /usr/share/nginx/html;
     index index.html;
 
