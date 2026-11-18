@@ -63,7 +63,9 @@ const ICONS = {
 /* ---------- Utils ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+// randomUUID n'existe qu'en HTTPS ; getRandomValues marche aussi en HTTP (sels aléatoires sûrs)
+const uid = () => (crypto.randomUUID ? crypto.randomUUID()
+  : [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join(''));
 const num = (v) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
 const fmtN = (n) => (Math.round(n * 10) / 10).toLocaleString('fr-FR');
 const key = (s) => String(s || '').trim().toLowerCase();
@@ -177,10 +179,17 @@ const calInit = () => { const d = new Date(); return { y: d.getFullYear(), m: d.
 /* ---------- Auth (locale, mot de passe hashé PBKDF2) ---------- */
 const users = () => Store.get(`${APP}:users`, []);
 
+const PBKDF2_ITERATIONS = 150000;
+
 async function hashPw(pw, salt) {
+  // En HTTP (hors localhost), crypto.subtle n'existe pas : repli JS pur, résultat identique.
+  if (!window.crypto?.subtle) {
+    await new Promise((r) => setTimeout(r, 20)); // laisse l'interface afficher « Patiente… »
+    return Pbkdf2.hex(pw, salt, PBKDF2_ITERATIONS);
+  }
   const enc = new TextEncoder();
   const k = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: enc.encode(salt), iterations: 150000, hash: 'SHA-256' }, k, 256);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: enc.encode(salt), iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' }, k, 256);
   return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
@@ -1350,8 +1359,9 @@ document.addEventListener('submit', async (e) => {
   const f = new FormData(e.target);
   const name = String(f.get('username') || '');
   state.authName = name;
+  const btn = e.target.querySelector('[type="submit"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Patiente…'; }
   try {
-    if (!window.crypto?.subtle) throw new Error('Ouvre l\'app en HTTPS (ou localhost) pour te connecter.');
     const pw = String(f.get('password') || '');
     const user = state.authMode === 'register' ? await register(name, pw, String(f.get('password2') || '')) : await login(name, pw);
     state.authError = '';
